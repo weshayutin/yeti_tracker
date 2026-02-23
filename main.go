@@ -65,6 +65,7 @@ func main() {
 	}
 
 	http.HandleFunc("/", app.IndexHandler)
+	http.HandleFunc("/healthz", app.HealthHandler)
 
 	addr := ":" + serverPort
 	log.Printf("server listening on http://localhost%s", addr)

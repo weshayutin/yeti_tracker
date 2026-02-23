@@ -7,3 +7,7 @@ yeti_tracker
 # IDE
 .idea/
 .vscode/
+
+# openshift
+openshift/*
+openshift/secret.yaml

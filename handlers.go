@@ -252,3 +252,8 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("template execute error: %v", err)
 	}
 }
+
+func (app *App) HealthHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ok"))
+}
