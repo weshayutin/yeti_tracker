@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -54,6 +55,7 @@ type PageData struct {
 	EndDate    string
 	Region     string
 	ActiveOnly bool
+	PAXFilter  string
 	QueryTime  string
 }
 
@@ -125,6 +127,7 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	region := r.URL.Query().Get("region")
 	activeOnlyStr := r.URL.Query().Get("active_only")
 	activeOnly := activeOnlyStr == "on" || activeOnlyStr == "true" || activeOnlyStr == "1"
+	paxFilter := r.URL.Query().Get("pax_filter")
 
 	if startDate == "" {
 		startDate = app.DefaultStartDate
@@ -146,6 +149,16 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
+	var paxRegex *regexp.Regexp
+	if paxFilter != "" {
+		var err error
+		paxRegex, err = regexp.Compile("(?i)" + paxFilter)
+		if err != nil {
+			log.Printf("invalid pax_filter regex %q: %v", paxFilter, err)
+			paxRegex = nil
+		}
+	}
+
 	var attendanceRows []AttendanceRow
 	paxMap := make(map[string]*PAXStats)
 	qCountMap := make(map[string]int)
@@ -159,6 +172,11 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		row.ActiveAO = activeInt == 1
+
+		if paxRegex != nil && !paxRegex.MatchString(row.PAX) {
+			continue
+		}
+
 		attendanceRows = append(attendanceRows, row)
 
 		aoSet[row.AO] = true
@@ -231,6 +249,7 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 		EndDate:     endDate,
 		Region:      region,
 		ActiveOnly:  activeOnly,
+		PAXFilter:   paxFilter,
 		QueryTime:   fmt.Sprintf("%.2fs", time.Since(start).Seconds()),
 	}
 
