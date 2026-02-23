@@ -1,0 +1,9 @@
+# Binary
+yeti_tracker
+
+# Environment with real credentials
+.env
+
+# IDE
+.idea/
+.vscode/
