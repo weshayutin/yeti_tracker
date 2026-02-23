@@ -1,0 +1,5 @@
+yeti_tracker
+.env
+.git
+.gitignore
+*.md

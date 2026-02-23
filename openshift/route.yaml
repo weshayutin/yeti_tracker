@@ -1,0 +1,17 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: yeti-tracker
+  namespace: yeti-tracker
+  labels:
+    app: yeti-tracker
+spec:
+  to:
+    kind: Service
+    name: yeti-tracker
+    weight: 100
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

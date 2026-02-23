@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Band of Yeti Tracker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #0f1117;
+            color: #e0e0e0;
+            line-height: 1.5;
+        }
+        header {
+            background: linear-gradient(135deg, #1a1d2e 0%, #2d1f3d 100%);
+            padding: 1.25rem 2rem;
+            border-bottom: 3px solid #6c5ce7;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        header h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+        header h1 span { color: #a29bfe; }
+        .query-time {
+            font-size: 0.8rem;
+            color: #888;
+        }
+        .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
+
+        /* Filters */
+        .filters {
+            background: #1a1d2e;
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: flex-end;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 0.3rem; }
+        .filter-group label {
+            font-size: 0.75rem;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .filter-group input[type="date"],
+        .filter-group select {
+            background: #12141f;
+            border: 1px solid #333;
+            color: #e0e0e0;
+            padding: 0.5rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .filter-group input[type="date"]:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: #6c5ce7;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding-bottom: 0.35rem;
+        }
+        .checkbox-group input { accent-color: #6c5ce7; width: 16px; height: 16px; }
+        .checkbox-group label { font-size: 0.9rem; color: #ccc; }
+        .btn {
+            background: #6c5ce7;
+            color: #fff;
+            border: none;
+            padding: 0.55rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #5a4bd1; }
+
+        /* Stat Cards */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: #1a1d2e;
+            border-radius: 8px;
+            padding: 1.25rem;
+            border-left: 4px solid #6c5ce7;
+        }
+        .stat-card .stat-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: #888;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.3rem;
+        }
+        .stat-card .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .stat-card .stat-detail {
+            font-size: 0.8rem;
+            color: #6c5ce7;
+            margin-top: 0.25rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 0;
+        }
+        .tab {
+            padding: 0.7rem 1.5rem;
+            background: #12141f;
+            color: #888;
+            cursor: pointer;
+            border: 1px solid #333;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .tab:hover { color: #ccc; }
+        .tab.active {
+            background: #1a1d2e;
+            color: #fff;
+            border-color: #6c5ce7;
+            border-bottom: 1px solid #1a1d2e;
+        }
+        .tab-content {
+            display: none;
+            background: #1a1d2e;
+            border-radius: 0 8px 8px 8px;
+            border: 1px solid #333;
+            overflow: hidden;
+        }
+        .tab-content.active { display: block; }
+
+        /* Tables */
+        .table-wrap { overflow-x: auto; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        thead th {
+            background: #12141f;
+            padding: 0.7rem 1rem;
+            text-align: left;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #999;
+            position: sticky;
+            top: 0;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        thead th:hover { color: #e0e0e0; }
+        thead th .sort-arrow { margin-left: 4px; font-size: 0.6rem; }
+        tbody td {
+            padding: 0.55rem 1rem;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #1f2233;
+        }
+        tbody tr:hover { background: #1f2233; }
+        tbody tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+        tbody tr:nth-child(even):hover { background: #1f2233; }
+        .ao-list {
+            max-width: 250px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .region-north { color: #74b9ff; }
+        .region-south { color: #55efc4; }
+        .active-yes { color: #55efc4; }
+        .active-no { color: #d63031; }
+
+        .row-count {
+            padding: 0.75rem 1rem;
+            font-size: 0.8rem;
+            color: #888;
+            background: #12141f;
+        }
+
+        /* Scrollable table body */
+        .table-scroll {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .table-scroll::-webkit-scrollbar { width: 8px; }
+        .table-scroll::-webkit-scrollbar-track { background: #12141f; }
+        .table-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        .table-scroll::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: #555;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Band of <span>Yeti</span> Tracker</h1>
+        <span class="query-time">Query: {{.QueryTime}}</span>
+    </header>
+
+    <div class="container">
+        <form class="filters" method="GET" action="/">
+            <div class="filter-group">
+                <label>Start Date</label>
+                <input type="date" name="start_date" value="{{.StartDate}}">
+            </div>
+            <div class="filter-group">
+                <label>End Date</label>
+                <input type="date" name="end_date" value="{{.EndDate}}">
+            </div>
+            <div class="filter-group">
+                <label>Region</label>
+                <select name="region">
+                    <option value="All" {{if eq .Region "All"}}selected{{end}}>All</option>
+                    <option value="North" {{if eq .Region "North"}}selected{{end}}>North</option>
+                    <option value="South" {{if eq .Region "South"}}selected{{end}}>South</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <div class="checkbox-group">
+                    <input type="checkbox" id="active_only" name="active_only" {{if .ActiveOnly}}checked{{end}}>
+                    <label for="active_only">Active AOs Only</label>
+                </div>
+            </div>
+            <button class="btn" type="submit">Apply Filters</button>
+        </form>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Total Posts</div>
+                <div class="stat-value">{{.TotalPosts}}</div>
+                <div class="stat-detail">{{.StartDate}} &ndash; {{.EndDate}}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Unique PAX</div>
+                <div class="stat-value">{{.UniquePAX}}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Unique AOs</div>
+                <div class="stat-value">{{.UniqueAOs}}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Top PAX</div>
+                <div class="stat-value">{{.TopPAX}}</div>
+                <div class="stat-detail">{{.TopPAXCount}} posts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Top Q</div>
+                <div class="stat-value">{{.TopQ}}</div>
+                <div class="stat-detail">{{.TopQCount}} Qs</div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('leaderboard')">PAX Leaderboard</div>
+            <div class="tab" onclick="switchTab('attendance')">Attendance Log</div>
+        </div>
+
+        <div id="tab-leaderboard" class="tab-content active">
+            <div class="row-count">{{len .Leaderboard}} PAX</div>
+            <div class="table-wrap">
+                <div class="table-scroll">
+                    <table id="leaderboard-table">
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('leaderboard-table', 0, 'num')">Rank <span class="sort-arrow"></span></th>
+                                <th onclick="sortTable('leaderboard-table', 1, 'str')">PAX <span class="sort-arrow"></span></th>
+                                <th onclick="sortTable('leaderboard-table', 2, 'num')">Total <span class="sort-arrow"></span></th>
+                                <th onclick="sortTable('leaderboard-table', 3, 'num')">North <span class="sort-arrow"></span></th>
+                                <th onclick="sortTable('leaderboard-table', 4, 'num')">South <span class="sort-arrow"></span></th>
+                                <th onclick="sortTable('leaderboard-table', 5, 'num')">Q Count <span class="sort-arrow"></span></th>
+                                <th>AOs</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .Leaderboard}}
+                            <tr>
+                                <td>{{.Rank}}</td>
+                                <td>{{.PAX}}</td>
+                                <td>{{.Total}}</td>
+                                <td>{{.NorthCount}}</td>
+                                <td>{{.SouthCount}}</td>
+                                <td>{{.QCount}}</td>
+                                <td><span class="ao-list" title="{{joinStrings .AOs ", "}}">{{joinStrings .AOs ", "}}</span></td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-attendance" class="tab-content">
+            <div class="row-count">{{len .Rows}} records</div>
+            <div class="table-wrap">
+                <div class="table-scroll">
+                    <table id="attendance-table">
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('attendance-table', 0, 'str')">Date <span class="sort-arrow"></span></th>
+                                <th onclick="sortTable('attendance-table', 1, 'str')">Region <span class="sort-arrow"></span></th>
+                                <th onclick="sortTable('attendance-table', 2, 'str')">AO <span class="sort-arrow"></span></th>
+                                <th onclick="sortTable('attendance-table', 3, 'str')">PAX <span class="sort-arrow"></span></th>
+                                <th onclick="sortTable('attendance-table', 4, 'str')">Q <span class="sort-arrow"></span></th>
+                                <th onclick="sortTable('attendance-table', 5, 'str')">Active <span class="sort-arrow"></span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{range .Rows}}
+                            <tr>
+                                <td>{{.Date}}</td>
+                                <td><span class="{{if eq .Region "North"}}region-north{{else}}region-south{{end}}">{{.Region}}</span></td>
+                                <td>{{.AO}}</td>
+                                <td>{{.PAX}}</td>
+                                <td>{{.Q}}</td>
+                                <td><span class="{{if .ActiveAO}}active-yes{{else}}active-no{{end}}">{{if .ActiveAO}}Yes{{else}}No{{end}}</span></td>
+                            </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        Band of Yeti Tracker &mdash; F3 Denver
+    </footer>
+
+    <script>
+    function switchTab(name) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + name).classList.add('active');
+        const tabs = document.querySelectorAll('.tab');
+        if (name === 'leaderboard') tabs[0].classList.add('active');
+        else tabs[1].classList.add('active');
+    }
+
+    const sortState = {};
+
+    function sortTable(tableId, colIdx, type) {
+        const table = document.getElementById(tableId);
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        const key = tableId + '-' + colIdx;
+        const asc = sortState[key] = !sortState[key];
+
+        rows.sort((a, b) => {
+            let va = a.cells[colIdx].textContent.trim();
+            let vb = b.cells[colIdx].textContent.trim();
+            if (type === 'num') {
+                va = parseFloat(va) || 0;
+                vb = parseFloat(vb) || 0;
+                return asc ? va - vb : vb - va;
+            }
+            return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+        });
+
+        rows.forEach(r => tbody.appendChild(r));
+
+        table.querySelectorAll('thead th .sort-arrow').forEach(el => el.textContent = '');
+        const arrow = table.querySelectorAll('thead th')[colIdx].querySelector('.sort-arrow');
+        if (arrow) arrow.textContent = asc ? '\u25B2' : '\u25BC';
+    }
+    </script>
+</body>
+</html>

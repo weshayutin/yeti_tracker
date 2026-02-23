@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yeti-tracker
+  namespace: yeti-tracker
+  labels:
+    app: yeti-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: yeti-tracker
+  template:
+    metadata:
+      labels:
+        app: yeti-tracker
+    spec:
+      containers:
+        - name: yeti-tracker
+          image: quay.io/migtools/yeti:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: yeti-db-credentials
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
