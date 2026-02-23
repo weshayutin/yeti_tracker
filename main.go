@@ -64,6 +64,7 @@ func main() {
 		DefaultEndDate:   defaultEndDate,
 	}
 
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 	http.HandleFunc("/", app.IndexHandler)
 	http.HandleFunc("/healthz", app.HealthHandler)
 

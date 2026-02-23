@@ -14,6 +14,7 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=build /yeti_tracker .
 COPY --from=build /src/templates ./templates
+COPY --from=build /src/static ./static
 
 EXPOSE 8080
 ENTRYPOINT ["./yeti_tracker"]
