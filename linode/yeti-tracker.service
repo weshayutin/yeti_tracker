@@ -1,0 +1,16 @@
+[Unit]
+Description=Yeti Tracker
+After=network.target
+
+[Service]
+ExecStartPre=-/usr/bin/podman rm -f yeti-tracker
+ExecStart=/usr/bin/podman run --name yeti-tracker \
+    --env-file /opt/yeti/.env \
+    -p 8080:8080 \
+    quay.io/migtools/yeti:latest
+ExecStop=/usr/bin/podman stop yeti-tracker
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

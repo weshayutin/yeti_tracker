@@ -1,0 +1,3 @@
+trackthisyeti.com, www.trackthisyeti.com {
+    reverse_proxy localhost:8080
+}
