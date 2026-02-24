@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"html/template"
@@ -9,8 +10,14 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
+
+type CacheEntry struct {
+	Data     PageData
+	CachedAt time.Time
+}
 
 type App struct {
 	DB               *sql.DB
@@ -18,6 +25,8 @@ type App struct {
 	DBSouth          string
 	DefaultStartDate string
 	DefaultEndDate   string
+	cache            map[string]CacheEntry
+	cacheMu          sync.RWMutex
 }
 
 type AttendanceRow struct {
@@ -56,6 +65,8 @@ type PageData struct {
 	Region     string
 	ActiveOnly bool
 	PAXFilter  string
+	FromCache  bool
+	CachedAt   string
 	QueryTime  string
 }
 
@@ -119,6 +130,53 @@ SELECT * FROM (
 	return baseQuery, args
 }
 
+func cacheKey(startDate, endDate, region, paxFilter string, activeOnly bool) string {
+	active := "0"
+	if activeOnly {
+		active = "1"
+	}
+	return startDate + "|" + endDate + "|" + region + "|" + active + "|" + paxFilter
+}
+
+func (app *App) getCached(key string) (PageData, bool) {
+	app.cacheMu.RLock()
+	defer app.cacheMu.RUnlock()
+	entry, ok := app.cache[key]
+	if !ok {
+		return PageData{}, false
+	}
+	data := entry.Data
+	data.FromCache = true
+	data.CachedAt = entry.CachedAt.Format("2006-01-02 15:04:05 MST")
+	return data, true
+}
+
+func (app *App) setCache(key string, data PageData) {
+	app.cacheMu.Lock()
+	defer app.cacheMu.Unlock()
+	app.cache[key] = CacheEntry{Data: data, CachedAt: time.Now()}
+}
+
+func (app *App) renderPage(w http.ResponseWriter, data PageData) {
+	funcMap := template.FuncMap{
+		"joinStrings": func(s []string, sep string) string {
+			return strings.Join(s, sep)
+		},
+	}
+
+	tmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles("templates/index.html")
+	if err != nil {
+		log.Printf("template error: %v", err)
+		http.Error(w, "Template rendering failed", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.Execute(w, data); err != nil {
+		log.Printf("template execute error: %v", err)
+	}
+}
+
 func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
@@ -139,12 +197,23 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 		region = "All"
 	}
 
+	key := cacheKey(startDate, endDate, region, paxFilter, activeOnly)
+
 	query, args := app.buildQuery(startDate, endDate, region, activeOnly)
 
-	rows, err := app.DB.Query(query, args...)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	rows, err := app.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		log.Printf("query error: %v", err)
-		http.Error(w, "Database query failed", http.StatusInternalServerError)
+		if cached, ok := app.getCached(key); ok {
+			log.Printf("serving cached data for key %q", key)
+			cached.QueryTime = fmt.Sprintf("%.2fs (cached)", time.Since(start).Seconds())
+			app.renderPage(w, cached)
+			return
+		}
+		http.Error(w, "Database query failed and no cached data available", http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -253,26 +322,27 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 		QueryTime:   fmt.Sprintf("%.2fs", time.Since(start).Seconds()),
 	}
 
-	funcMap := template.FuncMap{
-		"joinStrings": func(s []string, sep string) string {
-			return strings.Join(s, sep)
-		},
-	}
-
-	tmpl, err := template.New("index.html").Funcs(funcMap).ParseFiles("templates/index.html")
-	if err != nil {
-		log.Printf("template error: %v", err)
-		http.Error(w, "Template rendering failed", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := tmpl.Execute(w, data); err != nil {
-		log.Printf("template execute error: %v", err)
-	}
+	app.setCache(key, data)
+	log.Printf("cache updated for key %q (%d rows, %d PAX)", key, len(attendanceRows), len(paxMap))
+	app.renderPage(w, data)
 }
 
 func (app *App) HealthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("ok"))
+}
+
+func (app *App) DBStatusHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := app.DB.PingContext(ctx); err != nil {
+		log.Printf("heartbeat: db DOWN (%v)", err)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte(`{"status":"down"}`))
+		return
+	}
+	log.Printf("heartbeat: db OK")
+	w.Write([]byte(`{"status":"ok"}`))
 }

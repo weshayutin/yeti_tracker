@@ -6,10 +6,30 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 )
+
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (lrw *loggingResponseWriter) WriteHeader(code int) {
+	lrw.statusCode = code
+	lrw.ResponseWriter.WriteHeader(code)
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+		next.ServeHTTP(lrw, r)
+		log.Printf("%s %s %d %s", r.Method, r.URL.String(), lrw.statusCode, time.Since(start).Truncate(time.Millisecond))
+	})
+}
 
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
@@ -62,13 +82,16 @@ func main() {
 		DBSouth:          dbSouth,
 		DefaultStartDate: defaultStartDate,
 		DefaultEndDate:   defaultEndDate,
+		cache:            make(map[string]CacheEntry),
 	}
 
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-	http.HandleFunc("/", app.IndexHandler)
-	http.HandleFunc("/healthz", app.HealthHandler)
+	mux := http.NewServeMux()
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	mux.HandleFunc("/", app.IndexHandler)
+	mux.HandleFunc("/healthz", app.HealthHandler)
+	mux.HandleFunc("/api/dbstatus", app.DBStatusHandler)
 
 	addr := ":" + serverPort
 	log.Printf("server listening on http://localhost%s", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal(http.ListenAndServe(addr, loggingMiddleware(mux)))
 }

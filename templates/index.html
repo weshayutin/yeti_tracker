@@ -42,7 +42,20 @@
         .query-time {
             font-size: 0.8rem;
             color: #888;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
+        .db-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #888;
+            display: inline-block;
+            transition: background 0.3s;
+        }
+        .db-indicator.up { background: #00b894; box-shadow: 0 0 6px #00b894; }
+        .db-indicator.down { background: #d63031; box-shadow: 0 0 6px #d63031; }
         .container { max-width: 1400px; margin: 0 auto; padding: 1.5rem; }
 
         /* Filters */
@@ -229,13 +242,40 @@
             color: #555;
             font-size: 0.8rem;
         }
+        .cache-banner {
+            background: rgba(214, 48, 49, 0.85);
+            color: #fff;
+            text-align: center;
+            padding: 0.6rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .github-link {
+            position: fixed;
+            bottom: 1rem;
+            right: 1.5rem;
+            font-size: 1.5rem;
+            color: #fff;
+            font-weight: 700;
+            text-decoration: none;
+            z-index: 10;
+            transition: color 0.2s;
+        }
+        .github-link:hover { color: #a29bfe; }
     </style>
 </head>
 <body>
     <header>
         <h1>Band of <span>Yeti</span> Tracker</h1>
-        <span class="query-time">Query: {{.QueryTime}}</span>
+        <span class="query-time"><span id="db-indicator" class="db-indicator" title="Checking..."></span> Time to query national db: {{.QueryTime}}</span>
     </header>
+
+    {{if .FromCache}}
+    <div class="cache-banner">
+        Serving cached data from {{.CachedAt}}. Database is currently unavailable.
+    </div>
+    {{end}}
 
     <div class="container">
         <form class="filters" method="GET" action="/">
@@ -370,6 +410,8 @@
         Band of Yeti Tracker &mdash; F3 Denver
     </footer>
 
+    <a class="github-link" href="https://github.com/weshayutin/yeti_tracker" target="_blank" rel="noopener">fork me? fork you! on github :)</a>
+
     <script>
     function switchTab(name) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -406,6 +448,23 @@
         const arrow = table.querySelectorAll('thead th')[colIdx].querySelector('.sort-arrow');
         if (arrow) arrow.textContent = asc ? '\u25B2' : '\u25BC';
     }
+
+    function checkDBStatus() {
+        const dot = document.getElementById('db-indicator');
+        fetch('/api/dbstatus')
+            .then(resp => resp.json())
+            .then(data => {
+                dot.className = 'db-indicator ' + (data.status === 'ok' ? 'up' : 'down');
+                dot.title = data.status === 'ok' ? 'Database connected' : 'Database unavailable';
+            })
+            .catch(() => {
+                dot.className = 'db-indicator down';
+                dot.title = 'Status check failed';
+            });
+    }
+
+    checkDBStatus();
+    setInterval(checkDBStatus, 60000);
     </script>
 </body>
 </html>
