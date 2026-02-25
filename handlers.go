@@ -309,7 +309,6 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 
 	var attendanceRows []AttendanceRow
 	paxMap := make(map[string]*PAXStats)
-	qCountMap := make(map[string]int)
 	aoSet := make(map[string]bool)
 
 	for rows.Next() {
@@ -328,7 +327,6 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 		attendanceRows = append(attendanceRows, row)
 
 		aoSet[row.AO] = true
-		qCountMap[row.Q]++
 
 		stats, ok := paxMap[row.PAX]
 		if !ok {
@@ -376,10 +374,10 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 
 	topQ := ""
 	topQCount := 0
-	for name, count := range qCountMap {
-		if count > topQCount {
-			topQ = name
-			topQCount = count
+	for _, s := range leaderboard {
+		if s.QCount > topQCount {
+			topQ = s.PAX
+			topQCount = s.QCount
 		}
 	}
 
@@ -430,7 +428,6 @@ func (app *App) PreWarmHistoricalCache() {
 
 		var attendanceRows []AttendanceRow
 		paxMap := make(map[string]*PAXStats)
-		qCountMap := make(map[string]int)
 		aoSet := make(map[string]bool)
 
 		for rows.Next() {
@@ -443,7 +440,6 @@ func (app *App) PreWarmHistoricalCache() {
 			row.ActiveAO = activeInt == 1
 			attendanceRows = append(attendanceRows, row)
 			aoSet[row.AO] = true
-			qCountMap[row.Q]++
 
 			stats, ok := paxMap[row.PAX]
 			if !ok {
@@ -491,10 +487,10 @@ func (app *App) PreWarmHistoricalCache() {
 		}
 		topQ := ""
 		topQCount := 0
-		for name, count := range qCountMap {
-			if count > topQCount {
-				topQ = name
-				topQCount = count
+		for _, s := range leaderboard {
+			if s.QCount > topQCount {
+				topQ = s.PAX
+				topQCount = s.QCount
 			}
 		}
 
