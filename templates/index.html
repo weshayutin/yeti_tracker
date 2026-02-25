@@ -263,6 +263,41 @@
             transition: color 0.2s;
         }
         .github-link:hover { color: #a29bfe; }
+
+        /* Season Links */
+        .season-links {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .season-links .season-label {
+            font-size: 0.8rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .season-links a {
+            display: inline-block;
+            background: #1a1d2e;
+            color: #a29bfe;
+            border: 1px solid #6c5ce7;
+            padding: 0.35rem 1rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .season-links a:hover {
+            background: #6c5ce7;
+            color: #fff;
+        }
+        .season-links a.active-season {
+            background: #6c5ce7;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -307,6 +342,16 @@
             </div>
             <button class="btn" type="submit">Apply Filters</button>
         </form>
+
+        {{if .PreviousSeasons}}
+        <div class="season-links" id="season-links">
+            <span class="season-label">Compare seasons:</span>
+            <a href="/" data-start="" data-end="">Current Season</a>
+            {{range .PreviousSeasons}}
+            <a href="/?start_date={{.StartDate}}&end_date={{.EndDate}}" data-start="{{.StartDate}}" data-end="{{.EndDate}}">{{.Label}}</a>
+            {{end}}
+        </div>
+        {{end}}
 
         <div class="stats">
             <div class="stat-card">
@@ -465,6 +510,20 @@
 
     checkDBStatus();
     setInterval(checkDBStatus, 60000);
+
+    (function() {
+        var links = document.querySelectorAll('#season-links a');
+        var params = new URLSearchParams(window.location.search);
+        var sd = params.get('start_date') || '';
+        var ed = params.get('end_date') || '';
+        links.forEach(function(a) {
+            var linkStart = a.getAttribute('data-start');
+            var linkEnd = a.getAttribute('data-end');
+            if (sd === linkStart && ed === linkEnd) {
+                a.classList.add('active-season');
+            }
+        });
+    })();
     </script>
 </body>
 </html>

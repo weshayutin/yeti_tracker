@@ -76,14 +76,22 @@ func main() {
 	}
 	log.Println("connected to MySQL")
 
+	cacheDir := getEnv("CACHE_DIR", "cache")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		log.Fatalf("failed to create cache directory %s: %v", cacheDir, err)
+	}
+
 	app := &App{
 		DB:               db,
 		DBNorth:          dbNorth,
 		DBSouth:          dbSouth,
 		DefaultStartDate: defaultStartDate,
 		DefaultEndDate:   defaultEndDate,
+		CacheDir:         cacheDir,
 		cache:            make(map[string]CacheEntry),
 	}
+
+	go app.PreWarmHistoricalCache()
 
 	mux := http.NewServeMux()
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))

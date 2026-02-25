@@ -2,11 +2,16 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -19,12 +24,35 @@ type CacheEntry struct {
 	CachedAt time.Time
 }
 
+type Season struct {
+	Label     string
+	StartDate string
+	EndDate   string
+}
+
+func historicalSeasons() []Season {
+	return []Season{
+		{Label: "2024/25 Season", StartDate: "2024-12-21", EndDate: "2025-03-20"},
+		{Label: "2023/24 Season", StartDate: "2023-12-21", EndDate: "2024-03-20"},
+	}
+}
+
+func isHistoricalSeason(startDate, endDate string) bool {
+	for _, s := range historicalSeasons() {
+		if s.StartDate == startDate && s.EndDate == endDate {
+			return true
+		}
+	}
+	return false
+}
+
 type App struct {
 	DB               *sql.DB
 	DBNorth          string
 	DBSouth          string
 	DefaultStartDate string
 	DefaultEndDate   string
+	CacheDir         string
 	cache            map[string]CacheEntry
 	cacheMu          sync.RWMutex
 }
@@ -65,9 +93,10 @@ type PageData struct {
 	Region     string
 	ActiveOnly bool
 	PAXFilter  string
-	FromCache  bool
-	CachedAt   string
-	QueryTime  string
+	FromCache       bool
+	CachedAt        string
+	QueryTime       string
+	PreviousSeasons []Season
 }
 
 func (app *App) buildQuery(startDate, endDate, region string, activeOnly bool) (string, []interface{}) {
@@ -157,6 +186,40 @@ func (app *App) setCache(key string, data PageData) {
 	app.cache[key] = CacheEntry{Data: data, CachedAt: time.Now()}
 }
 
+func (app *App) permanentCachePath(key string) string {
+	hash := sha256.Sum256([]byte(key))
+	return filepath.Join(app.CacheDir, hex.EncodeToString(hash[:8])+".json")
+}
+
+func (app *App) loadPermanentCache(key string) (PageData, bool) {
+	path := app.permanentCachePath(key)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return PageData{}, false
+	}
+	var data PageData
+	if err := json.Unmarshal(b, &data); err != nil {
+		log.Printf("permanent cache decode error for %s: %v", path, err)
+		return PageData{}, false
+	}
+	log.Printf("serving from permanent cache: %s", path)
+	return data, true
+}
+
+func (app *App) savePermanentCache(key string, data PageData) {
+	path := app.permanentCachePath(key)
+	b, err := json.Marshal(data)
+	if err != nil {
+		log.Printf("permanent cache encode error: %v", err)
+		return
+	}
+	if err := os.WriteFile(path, b, 0644); err != nil {
+		log.Printf("permanent cache write error for %s: %v", path, err)
+		return
+	}
+	log.Printf("permanent cache saved: %s", path)
+}
+
 func (app *App) renderPage(w http.ResponseWriter, data PageData) {
 	funcMap := template.FuncMap{
 		"joinStrings": func(s []string, sep string) string {
@@ -198,18 +261,34 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	key := cacheKey(startDate, endDate, region, paxFilter, activeOnly)
+	historical := isHistoricalSeason(startDate, endDate)
+
+	if historical {
+		if cached, ok := app.loadPermanentCache(key); ok {
+			cached.QueryTime = fmt.Sprintf("%.2fs (disk cache)", time.Since(start).Seconds())
+			cached.PreviousSeasons = historicalSeasons()
+			app.renderPage(w, cached)
+			return
+		}
+	}
 
 	query, args := app.buildQuery(startDate, endDate, region, activeOnly)
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-	defer cancel()
-
-	rows, err := app.DB.QueryContext(ctx, query, args...)
+	var queryCtx context.Context
+	var cancel context.CancelFunc
+	if historical {
+		queryCtx = r.Context()
+	} else {
+		queryCtx, cancel = context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+	}
+	rows, err := app.DB.QueryContext(queryCtx, query, args...)
 	if err != nil {
 		log.Printf("query error: %v", err)
 		if cached, ok := app.getCached(key); ok {
 			log.Printf("serving cached data for key %q", key)
 			cached.QueryTime = fmt.Sprintf("%.2fs (cached)", time.Since(start).Seconds())
+			cached.PreviousSeasons = historicalSeasons()
 			app.renderPage(w, cached)
 			return
 		}
@@ -305,26 +384,139 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := PageData{
-		Rows:        attendanceRows,
-		Leaderboard: leaderboard,
-		TotalPosts:  len(attendanceRows),
-		UniquePAX:   len(paxMap),
-		UniqueAOs:   len(aoSet),
-		TopPAX:      topPAX,
-		TopPAXCount: topPAXCount,
-		TopQ:        topQ,
-		TopQCount:   topQCount,
-		StartDate:   startDate,
-		EndDate:     endDate,
-		Region:      region,
-		ActiveOnly:  activeOnly,
-		PAXFilter:   paxFilter,
-		QueryTime:   fmt.Sprintf("%.2fs", time.Since(start).Seconds()),
+		Rows:            attendanceRows,
+		Leaderboard:     leaderboard,
+		TotalPosts:      len(attendanceRows),
+		UniquePAX:       len(paxMap),
+		UniqueAOs:       len(aoSet),
+		TopPAX:          topPAX,
+		TopPAXCount:     topPAXCount,
+		TopQ:            topQ,
+		TopQCount:       topQCount,
+		StartDate:       startDate,
+		EndDate:         endDate,
+		Region:          region,
+		ActiveOnly:      activeOnly,
+		PAXFilter:       paxFilter,
+		QueryTime:       fmt.Sprintf("%.2fs", time.Since(start).Seconds()),
+		PreviousSeasons: historicalSeasons(),
 	}
 
 	app.setCache(key, data)
 	log.Printf("cache updated for key %q (%d rows, %d PAX)", key, len(attendanceRows), len(paxMap))
+
+	if historical {
+		app.savePermanentCache(key, data)
+	}
+
 	app.renderPage(w, data)
+}
+
+func (app *App) PreWarmHistoricalCache() {
+	for _, season := range historicalSeasons() {
+		key := cacheKey(season.StartDate, season.EndDate, "All", "", false)
+		if _, ok := app.loadPermanentCache(key); ok {
+			log.Printf("pre-warm: cache hit for %s, skipping DB query", season.Label)
+			continue
+		}
+
+		log.Printf("pre-warm: querying DB for %s (%s to %s)", season.Label, season.StartDate, season.EndDate)
+		query, args := app.buildQuery(season.StartDate, season.EndDate, "All", false)
+		rows, err := app.DB.Query(query, args...)
+		if err != nil {
+			log.Printf("pre-warm: query error for %s: %v", season.Label, err)
+			continue
+		}
+
+		var attendanceRows []AttendanceRow
+		paxMap := make(map[string]*PAXStats)
+		qCountMap := make(map[string]int)
+		aoSet := make(map[string]bool)
+
+		for rows.Next() {
+			var row AttendanceRow
+			var activeInt int
+			if err := rows.Scan(&row.Region, &row.Date, &row.AO, &row.PAX, &row.PAXId, &row.Q, &row.QId, &activeInt); err != nil {
+				log.Printf("pre-warm: scan error: %v", err)
+				continue
+			}
+			row.ActiveAO = activeInt == 1
+			attendanceRows = append(attendanceRows, row)
+			aoSet[row.AO] = true
+			qCountMap[row.Q]++
+
+			stats, ok := paxMap[row.PAX]
+			if !ok {
+				stats = &PAXStats{PAX: row.PAX, AOs: []string{}}
+				paxMap[row.PAX] = stats
+			}
+			stats.Total++
+			if row.Region == "North" {
+				stats.NorthCount++
+			} else {
+				stats.SouthCount++
+			}
+			if row.PAX == row.Q {
+				stats.QCount++
+			}
+			found := false
+			for _, a := range stats.AOs {
+				if a == row.AO {
+					found = true
+					break
+				}
+			}
+			if !found {
+				stats.AOs = append(stats.AOs, row.AO)
+			}
+		}
+		rows.Close()
+
+		leaderboard := make([]PAXStats, 0, len(paxMap))
+		for _, s := range paxMap {
+			leaderboard = append(leaderboard, *s)
+		}
+		sort.Slice(leaderboard, func(i, j int) bool {
+			return leaderboard[i].Total > leaderboard[j].Total
+		})
+		for i := range leaderboard {
+			leaderboard[i].Rank = i + 1
+		}
+
+		topPAX := ""
+		topPAXCount := 0
+		if len(leaderboard) > 0 {
+			topPAX = leaderboard[0].PAX
+			topPAXCount = leaderboard[0].Total
+		}
+		topQ := ""
+		topQCount := 0
+		for name, count := range qCountMap {
+			if count > topQCount {
+				topQ = name
+				topQCount = count
+			}
+		}
+
+		data := PageData{
+			Rows:        attendanceRows,
+			Leaderboard: leaderboard,
+			TotalPosts:  len(attendanceRows),
+			UniquePAX:   len(paxMap),
+			UniqueAOs:   len(aoSet),
+			TopPAX:      topPAX,
+			TopPAXCount: topPAXCount,
+			TopQ:        topQ,
+			TopQCount:   topQCount,
+			StartDate:   season.StartDate,
+			EndDate:     season.EndDate,
+			Region:      "All",
+		}
+
+		app.savePermanentCache(key, data)
+		app.setCache(key, data)
+		log.Printf("pre-warm: cached %s (%d rows, %d PAX)", season.Label, len(attendanceRows), len(paxMap))
+	}
 }
 
 func (app *App) HealthHandler(w http.ResponseWriter, r *http.Request) {

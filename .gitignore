@@ -5,6 +5,9 @@ yeti_tracker
 .env
 linode/setup.sh
 
+# Permanent cache data files
+cache/*.json
+
 # IDE
 .idea/
 .vscode/
