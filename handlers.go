@@ -69,13 +69,14 @@ type AttendanceRow struct {
 }
 
 type PAXStats struct {
-	Rank       int
-	PAX        string
-	Total      int
-	NorthCount int
-	SouthCount int
-	QCount     int
-	AOs        []string
+	Rank        int
+	PAX         string
+	Total       int
+	NorthCount  int
+	SouthCount  int
+	QCount      int
+	AOs         []string
+	IsYetiBeast bool
 }
 
 type PageData struct {
@@ -363,6 +364,8 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	for i := range leaderboard {
 		leaderboard[i].Rank = i + 1
+		lb := &leaderboard[i]
+		lb.IsYetiBeast = lb.Total >= 50 && len(lb.AOs) >= 10 && lb.QCount >= 6
 	}
 
 	topPAX := ""
@@ -477,6 +480,8 @@ func (app *App) PreWarmHistoricalCache() {
 		})
 		for i := range leaderboard {
 			leaderboard[i].Rank = i + 1
+			lb := &leaderboard[i]
+			lb.IsYetiBeast = lb.Total >= 50 && len(lb.AOs) >= 10 && lb.QCount >= 6
 		}
 
 		topPAX := ""

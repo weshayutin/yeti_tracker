@@ -218,6 +218,27 @@
         .region-south { color: #55efc4; }
         .active-yes { color: #55efc4; }
         .active-no { color: #d63031; }
+        .beast-badge {
+            width: 22px;
+            height: 22px;
+            vertical-align: middle;
+            margin-right: 4px;
+            cursor: pointer;
+        }
+        .beast-popup {
+            position: fixed;
+            width: 150px;
+            height: 150px;
+            z-index: 9999;
+            pointer-events: none;
+            border-radius: 8px;
+            filter: drop-shadow(0 0 12px rgba(108, 92, 231, 0.8));
+            animation: beastFadeIn 0.15s ease;
+        }
+        @keyframes beastFadeIn {
+            from { opacity: 0; transform: scale(0.5); }
+            to { opacity: 1; transform: scale(1); }
+        }
 
         .row-count {
             padding: 0.75rem 1rem;
@@ -403,7 +424,7 @@
                         <tbody>
                             {{range .Leaderboard}}
                             <tr>
-                                <td>{{.Rank}}</td>
+                                <td>{{if .IsYetiBeast}}<img src="/static/yeti_beast.png" class="beast-badge" title="Yeti Beast: 50+ posts, 10+ AOs, 6+ Qs">{{end}}{{.Rank}}</td>
                                 <td>{{.PAX}}</td>
                                 <td>{{.Total}}</td>
                                 <td>{{.NorthCount}}</td>
@@ -524,6 +545,26 @@
             }
         });
     })();
+
+    document.addEventListener('mouseenter', function(e) {
+        if (!e.target.classList.contains('beast-badge')) return;
+        var popup = document.createElement('img');
+        popup.src = '/static/yeti_beast.png';
+        popup.className = 'beast-popup';
+        var rect = e.target.getBoundingClientRect();
+        popup.style.left = (rect.right + 10) + 'px';
+        popup.style.top = (rect.top + rect.height / 2 - 75) + 'px';
+        document.body.appendChild(popup);
+        e.target._beastPopup = popup;
+    }, true);
+
+    document.addEventListener('mouseleave', function(e) {
+        if (!e.target.classList.contains('beast-badge')) return;
+        if (e.target._beastPopup) {
+            e.target._beastPopup.remove();
+            e.target._beastPopup = null;
+        }
+    }, true);
     </script>
 </body>
 </html>
