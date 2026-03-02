@@ -39,6 +39,18 @@
             letter-spacing: 0.5px;
         }
         header h1 span { color: #a29bfe; }
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+        .help-link {
+            font-size: 0.9rem;
+            color: #a29bfe;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .help-link:hover { color: #6c5ce7; }
         .query-time {
             font-size: 0.8rem;
             color: #888;
@@ -324,7 +336,10 @@
 <body>
     <header>
         <h1>Band of <span>Yeti</span> Tracker</h1>
-        <span class="query-time"><span id="db-indicator" class="db-indicator" title="Checking..."></span> Time to query national db: {{.QueryTime}}</span>
+        <div class="header-right">
+            <a href="https://help.f3denverco.com/" target="_blank" rel="noopener" class="help-link">Want a hand? HELP!!</a>
+            <span class="query-time"><span id="db-indicator" class="db-indicator" title="Checking..."></span> Time to query national db: {{.QueryTime}}</span>
+        </div>
     </header>
 
     {{if .FromCache}}
